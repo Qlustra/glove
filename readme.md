@@ -8,19 +8,39 @@ tool as a typed command surface and let Glove render, validate, resolve, and exe
 
 It is not a CLI framework for building your own command-line app.
 It is the other side of that equation: a library for driving
-existing tools like `git`, `docker`, `kubectl`, `ffmpeg`, `terraform`, or internal company binaries from Go code.
+existing tools like `git`, `docker`, `kubectl`, `terraform`, or internal company binaries from Go code.
 
 ```go
-result := docker.Run(ctx,
-    Compose{File: "compose.dev.yml"},
-    Up{Detach: true, Service: "api"},
-)
+type Git struct {
+	Bin   glove.Bin `bin:"git"`
+	Clone Clone     `cmd:"clone"`
+}
+
+type Clone struct {
+	Branch string `flag:"--branch,-b"`
+	Depth  int    `flag:"--depth"`
+	Repo   string `arg:"0,required"`
+	Dir    string `arg:"1"`
+}
+git := glove.New(Git{})
+
+cmd, err := git.Command(Clone{
+	Branch: "main",
+	Depth:  1,
+	Repo:   "https://github.com/acme/project.git",
+	Dir:    "./project",
+})
+if err != nil {
+	panic(err)
+}
+
+fmt.Println(cmd.String())
 ```
 
 Constructed command:
 
 ```sh
-docker compose --file compose.dev.yml up --detach api
+git clone --branch main --depth 1 https://github.com/acme/project.git ./project
 ```
 
 Glove gives external CLIs a typed control surface without hiding the fact that they are still CLIs.
@@ -31,163 +51,126 @@ Glove gives external CLIs a typed control surface without hiding the fact that t
 go get github.com/qlustra/glove
 ```
 
-## Why Glove?
+## Current scope
 
-Calling external tools from Go usually starts simple:
+The current implementation is a deliberately small first pass:
 
-```go
-exec.CommandContext(ctx, "git", "clone", "--branch", branch, repo, dir)
-```
+- reflection-first driver compilation
+- typed command trees using structs and tags
+- explicit command frames for nested commands
+- command inspection through `Driver.Command(...)`
+- default execution through `ExecRunner`
+- injectable runners for tests and custom process control
+- binary override through `CompileOptions`
 
-Then the integration grows.
+Not implemented yet:
 
-You add optional flags. Repeated flags. Positional arguments. Environment variables. Working directories. Version checks.
-Tool detection. Compatibility behavior. Test doubles. Debug logging. Dry-runs. Structured output handling.
+- version detection
+- compatibility rules
+- code generation
 
-Eventually, the command call becomes an untyped mini-language spread across string slices.
-
-Glove is for that middle ground where a full SDK does not exist, is not worth writing,
-or would be less honest than calling the tool directly — but raw `exec.Command` has become too loose.
-
-## Core idea
-
-Describe an external tool as a typed command tree:
-
-```go
-type Git struct {
-    Bin   glove.Bin `bin:"git" version:"--version"`
-    Clone Clone     `cmd:"clone"`
-}
-
-type Clone struct {
-    Branch string `flag:"--branch,-b"`
-    Depth  int    `flag:"--depth"`
-    Repo   string `arg:"0,required"`
-    Dir    string `arg:"1"`
-}
-```
-
-Then call it using command frames:
-
-```go
-git := glove.New(Git{})
-
-result := git.Run(ctx, Clone{
-    Branch: "main",
-    Depth:  1,
-    Repo:   "https://github.com/acme/project.git",
-    Dir:    "./project",
-})
-```
-
-Constructed command:
-
-```sh
-git clone --branch main --depth 1 https://github.com/acme/project.git ./project
-```
-
-Each frame contributes a subcommand name, flags, positional arguments, compatibility metadata, and rendering behavior.
-
-## Status
-
-Glove is currently an early design/prototype concept.
-
-The intended direction is:
-
-* reflection-first API for fast iteration
-* typed command trees using structs and tags
-* explicit command frames for nested commands
-* binary resolution through `PATH` or configured overrides
-* optional version detection and compatibility rules
-* injectable runners for testing and custom execution
-* possible code generation later for stronger typed wrappers
-
-The API shown in this README represents the target shape, not a finalized stable contract.
+Glove currently targets conventional command-tree CLIs. Within a frame, flags render before positional arguments.
+Order-sensitive token streams such as `ffmpeg` are not a good fit for the current model.
 
 ## Quick start
-
-Define a small driver surface:
 
 ```go
 package main
 
 import (
-    "context"
-    "fmt"
+	"context"
+	"fmt"
 
-    "github.com/qlustra/glove"
+	"github.com/qlustra/glove"
 )
 
 type Git struct {
-    Bin   glove.Bin `bin:"git" version:"--version"`
-    Clone Clone     `cmd:"clone"`
+	Bin   glove.Bin `bin:"git"`
+	Clone Clone     `cmd:"clone"`
 }
 
 type Clone struct {
-    Branch string `flag:"--branch,-b"`
-    Depth  int    `flag:"--depth"`
-    Repo   string `arg:"0,required"`
-    Dir    string `arg:"1"`
+	Branch string `flag:"--branch,-b"`
+	Depth  int    `flag:"--depth"`
+	Repo   string `arg:"0,required"`
+	Dir    string `arg:"1"`
 }
 
 func main() {
-    ctx := context.Background()
+	ctx := context.Background()
 
-    git := glove.New(Git{})
+	git := glove.New(Git{})
 
-    result := git.Run(ctx, Clone{
-        Branch: "main",
-        Depth:  1,
-        Repo:   "https://github.com/acme/project.git",
-        Dir:    "./project",
-    })
+	result := git.Run(ctx, Clone{
+		Branch: "main",
+		Depth:  1,
+		Repo:   "https://github.com/acme/project.git",
+		Dir:    "./project",
+	})
 
-    if result.Err != nil {
-        fmt.Println(string(result.Stderr))
-        panic(result.Err)
-    }
+	if result.Err != nil {
+		fmt.Println(string(result.Stderr))
+		panic(result.Err)
+	}
 
-    fmt.Println(string(result.Stdout))
+	fmt.Println(string(result.Stdout))
 }
 ```
 
-This renders and executes:
+## Compile and run
 
-```sh
-git clone --branch main --depth 1 https://github.com/acme/project.git ./project
+Use `Compile(...)` when schema errors should be handled explicitly:
+
+```go
+git, err := glove.Compile(Git{})
+if err != nil {
+	panic(err)
+}
+```
+
+Use `New(...)` when an invalid driver declaration should be treated as a programmer error:
+
+```go
+git := glove.New(Git{})
+```
+
+Both accept an optional `glove.CompileOptions`:
+
+```go
+git := glove.New(Git{}, glove.CompileOptions{
+	Bin: "/usr/local/bin/git",
+})
 ```
 
 ## Representative examples
 
 ### Nested commands
 
-Some tools use multi-level command trees. Glove models each level as a command frame.
-
 ```go
 type Docker struct {
-    Bin     glove.Bin `bin:"docker" version:"--version"`
-    Compose Compose   `cmd:"compose"`
+	Bin     glove.Bin `bin:"docker"`
+	Compose Compose   `cmd:"compose"`
 }
 
 type Compose struct {
-    File string `flag:"--file,-f"`
-    Up   Up     `cmd:"up"`
+	File string `flag:"--file,-f"`
+	Up   Up     `cmd:"up"`
 }
 
 type Up struct {
-    Detach  bool   `flag:"--detach,-d"`
-    Service string `arg:"0"`
+	Detach  bool   `flag:"--detach,-d"`
+	Service string `arg:"0"`
 }
 ```
 
-Call it like this:
+Usage:
 
 ```go
 docker := glove.New(Docker{})
 
-result := docker.Run(ctx,
-    Compose{File: "compose.dev.yml"},
-    Up{Detach: true, Service: "api"},
+cmd, err := docker.Command(
+	Compose{File: "compose.dev.yml"},
+	Up{Detach: true, Service: "api"},
 )
 ```
 
@@ -199,13 +182,13 @@ docker compose --file compose.dev.yml up --detach api
 
 ### Root-level flags
 
-Some tools accept flags before the subcommand.
+Root fields with `flag` tags render before the first subcommand when you pass a root frame explicitly:
 
 ```go
 type Docker struct {
-    Bin     glove.Bin `bin:"docker" version:"--version"`
-    Context string    `flag:"--context"`
-    Compose Compose   `cmd:"compose"`
+	Bin     glove.Bin `bin:"docker"`
+	Context string    `flag:"--context"`
+	Compose Compose   `cmd:"compose"`
 }
 ```
 
@@ -214,10 +197,10 @@ Usage:
 ```go
 docker := glove.New(Docker{})
 
-result := docker.Run(ctx,
-    Docker{Context: "prod"},
-    Compose{File: "compose.prod.yml"},
-    Up{Detach: true, Service: "api"},
+cmd, err := docker.Command(
+	Docker{Context: "prod"},
+	Compose{File: "compose.prod.yml"},
+	Up{Detach: true, Service: "api"},
 )
 ```
 
@@ -227,37 +210,40 @@ Constructed command:
 docker --context prod compose --file compose.prod.yml up --detach api
 ```
 
-Depending on final API design, root configuration may also be supplied through the driver instance instead of as a frame.
+### Repeated flags and tail args
 
-### Repeated flags
-
-Repeated flags are represented with slices.
+Repeated flags are inferred from slices and maps. Tail args are declared with `arg:"n,tail"`.
 
 ```go
+type Docker struct {
+	Bin glove.Bin `bin:"docker"`
+	Run Run       `cmd:"run"`
+}
+
 type Run struct {
-    Env     map[string]string `flag:"--env,-e,repeat,kv"`
-    Volume  []string          `flag:"--volume,-v,repeat"`
-    Image   string            `arg:"0,required"`
-    Command []string          `arg:"1,tail"`
+	Env     map[string]string `flag:"--env,-e"`
+	Volume  []string          `flag:"--volume,-v"`
+	Image   string            `arg:"0,required"`
+	Command []string          `arg:"1,tail"`
 }
 ```
 
 Usage:
 
 ```go
-result := docker.Run(ctx, Run{
-    Env: map[string]string{
-        "APP_ENV": "dev",
-        "DEBUG":   "1",
-    },
-    Volume: []string{
-        "/host/app:/app",
-        "/host/cache:/cache",
-    },
-    Image: "golang:1.24",
-    Command: []string{
-        "go", "test", "./...",
-    },
+docker := glove.New(Docker{})
+
+cmd, err := docker.Command(Run{
+	Env: map[string]string{
+		"APP_ENV": "dev",
+		"DEBUG":   "1",
+	},
+	Volume: []string{
+		"/host/app:/app",
+		"/host/cache:/cache",
+	},
+	Image:   "golang:1.24",
+	Command: []string{"go", "test", "./..."},
 })
 ```
 
@@ -267,141 +253,37 @@ Constructed command:
 docker run --env APP_ENV=dev --env DEBUG=1 --volume /host/app:/app --volume /host/cache:/cache golang:1.24 go test ./...
 ```
 
-### Optional and required positional arguments
+Map flags render in sorted key order for deterministic output.
 
-```go
-type Clone struct {
-    Repo string `arg:"0,required"`
-    Dir  string `arg:"1"`
-}
-```
+### Command inspection and manual execution
 
-If `Repo` is empty, Glove returns a validation error before executing the command.
-
-If `Dir` is empty, it is omitted.
-
-### Tail arguments
-
-Tail arguments are useful when the command forwards raw arguments to another process.
-
-```go
-type Exec struct {
-    Interactive bool     `flag:"--interactive,-i"`
-    TTY         bool     `flag:"--tty,-t"`
-    Container   string   `arg:"0,required"`
-    Command     []string `arg:"1,tail"`
-}
-```
-
-Usage:
-
-```go
-result := docker.Run(ctx, Exec{
-    Interactive: true,
-    TTY:         true,
-    Container:   "app",
-    Command:     []string{"bash", "-lc", "go test ./..."},
-})
-```
-
-Constructed command:
-
-```sh
-docker exec --interactive --tty app bash -lc "go test ./..."
-```
-
-### Binary resolution
-
-Glove can resolve the target binary from the driver declaration:
-
-```go
-type Git struct {
-    Bin glove.Bin `bin:"git" version:"--version"`
-}
-```
-
-By default, Glove resolves `git` through the current `PATH`.
-
-You can override the binary path for controlled environments:
-
-```go
-git := glove.New(
-    Git{},
-    glove.WithBin("/usr/local/bin/git"),
-)
-```
-
-This is useful for hermetic builds, CI jobs, portable toolchains, and tests.
-
-### Version detection and compatibility
-
-External CLIs are not stable APIs. Glove treats version and capability detection as first-class driver concerns.
-
-```go
-type Git struct {
-    Bin glove.Bin `bin:"git" version:"--version"`
-}
-
-type Clone struct {
-    Filter string `flag:"--filter" since:"2.19"`
-    Repo   string `arg:"0,required"`
-}
-```
-
-In strict compatibility mode, Glove can fail before execution if the installed binary does not support a requested flag.
-
-```go
-git := glove.New(
-    Git{},
-    glove.WithCompatibility(glove.Strict),
-)
-```
-
-Compatibility modes may include:
-
-```go
-const (
-    Strict CompatibilityMode = iota
-    BestEffort
-    IgnoreCompatibility
-)
-```
-
-The exact compatibility API is still subject to design, but the goal is simple: make external tool drift visible and controllable.
-
-### Dry runs and command inspection
-
-Drivers should be easy to debug. Glove can expose rendered commands before execution.
+`Driver.Command(...)` renders a `glove.Command` without executing it:
 
 ```go
 cmd, err := git.Command(Clone{
-    Branch: "main",
-    Repo:   "https://github.com/acme/project.git",
+	Branch: "main",
+	Repo:   "https://github.com/acme/project.git",
 })
+if err != nil {
+	panic(err)
+}
 
-fmt.Println(cmd.String())
+cmd.Dir = "/tmp/work"
+cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
+
+result := glove.ExecRunner{}.Run(ctx, cmd)
 ```
-
-Example output:
-
-```sh
-git clone --branch main https://github.com/acme/project.git
-```
-
-This is useful for logs, tests, dry-runs, documentation, and reproducible bug reports.
 
 ### Testing with a fake runner
 
-Glove separates command rendering from command execution.
-
 ```go
 type FakeRunner struct {
-    Commands []glove.Command
+	Commands []glove.Command
 }
 
 func (r *FakeRunner) Run(ctx context.Context, cmd glove.Command) glove.Result {
-    r.Commands = append(r.Commands, cmd)
-    return glove.Result{Stdout: []byte("ok")}
+	r.Commands = append(r.Commands, cmd)
+	return glove.Result{Command: cmd, Stdout: []byte("ok")}
 }
 ```
 
@@ -410,151 +292,142 @@ Usage:
 ```go
 runner := &FakeRunner{}
 
-git := glove.New(
-    Git{},
-    glove.WithRunner(runner),
-)
-
-_ = git.Run(ctx, Clone{
-    Branch: "main",
-    Repo:   "https://github.com/acme/project.git",
+git := glove.New(Git{}, glove.CompileOptions{
+	Runner: runner,
 })
 
-// Assert against runner.Commands[0]
+_ = git.Run(ctx, Clone{
+	Branch: "main",
+	Repo:   "https://github.com/acme/project.git",
+})
 ```
 
-This lets tests verify command construction without spawning real processes.
+## Exported surface
+
+```go
+type Bin struct{}
+
+type CompileOptions struct {
+	Bin    string
+	Runner Runner
+}
+
+type Driver[T any] struct{ /* opaque */ }
+
+func Compile[T any](decl T, options ...CompileOptions) (Driver[T], error)
+func New[T any](decl T, options ...CompileOptions) Driver[T]
+
+func (d Driver[T]) Command(frames ...any) (Command, error)
+func (d Driver[T]) Run(ctx context.Context, frames ...any) Result
+```
+
+Rendered commands and execution results use:
+
+```go
+type Command struct {
+	Program string
+	Args    []string
+	Dir     string
+	Env     []string
+}
+
+func (c Command) Argv() []string
+func (c Command) String() string
+
+type Result struct {
+	Command Command
+	Stdout  []byte
+	Stderr  []byte
+	Err     error
+}
+
+type Runner interface {
+	Run(context.Context, Command) Result
+}
+```
 
 ## Tag reference
 
 ### `bin`
 
-Declares the default binary name for a tool.
+Declares the default binary name for the driver root. It must be used on a `glove.Bin` field.
 
 ```go
 Bin glove.Bin `bin:"git"`
 ```
 
-### `version`
-
-Declares the command used to detect the installed tool version.
-
-```go
-Bin glove.Bin `bin:"git" version:"--version"`
-```
-
 ### `cmd`
 
-Declares a subcommand field.
+Declares a child command frame.
 
 ```go
 Clone Clone `cmd:"clone"`
 ```
+
+The field type must be a struct or pointer to struct.
 
 ### `flag`
 
 Declares a named CLI flag.
 
 ```go
-Branch string `flag:"--branch,-b"`
-Quiet  bool   `flag:"--quiet,-q"`
+Branch string            `flag:"--branch,-b"`
+Quiet  bool              `flag:"--quiet,-q"`
+Env    map[string]string `flag:"--env,-e"`
+Volume []string          `flag:"--volume,-v"`
 ```
 
-Expected default rendering:
+Supported field shapes:
 
-```text
-bool true  -> --flag
-string     -> --flag value
-int        -> --flag value
-slice      -> --flag value1 --flag value2
-map kv     -> --flag key=value
-```
+- `bool` renders as `--flag` when `true`
+- scalar values render as `--flag value`
+- `*scalar` renders when non-nil, even if the pointed value is a zero value
+- `[]scalar` repeats the flag once per item
+- `map[string]string` repeats the flag as `--flag key=value`
+
+Glove renders the first declared flag name. Additional names are aliases used for declaration and validation only.
 
 ### `arg`
 
 Declares a positional argument.
 
 ```go
-Repo string `arg:"0,required"`
-Dir  string `arg:"1"`
+Repo string   `arg:"0,required"`
+Dir  string   `arg:"1"`
+Tail []string `arg:"2,tail"`
 ```
 
-### `tail`
+Supported field shapes:
 
-Declares trailing passthrough arguments.
+- scalar values
+- `*scalar`
+- `[]string` with `tail`
 
-```go
-Command []string `arg:"1,tail"`
-```
+## Validation and conventions
 
-## Design principles
+Glove validates driver declarations up front:
 
-### External CLIs are porcelain
+- tagged fields must be exported
+- the root declaration must define exactly one `bin` field
+- each frame type may appear only once in a driver
+- sibling `cmd` names must be unique
+- positional arguments must be contiguous starting at `0`
+- `tail` positional arguments must be last
 
-Glove does not pretend that external command-line tools are stable APIs.
-It gives you a typed adapter layer while preserving escape hatches for raw arguments,
-version checks, compatibility policy, and direct command inspection.
+Glove also enforces a few rendering rules:
 
-### Typed where useful, raw where necessary
+- intermediate frames must be passed explicitly
+- within a frame, flags render before positional arguments
+- omitted optional positional arguments cannot be followed by later positional arguments
 
-The happy path should be typed and ergonomic. The weird path should still be possible.
+## Non-goals
 
-```go
-type Clone struct {
-    Branch    string   `flag:"--branch,-b"`
-    Repo      string   `arg:"0,required"`
-    ExtraArgs []string `arg:"1,tail"`
-}
-```
+Glove does not try to:
 
-### Reflection first, codegen later
-
-The initial API should be useful without generation steps.
-
-Later, Glove may generate strongly typed wrappers from the same command tree declarations:
-
-```go
-docker.Compose(Compose{File: "compose.yml"}).Up(Up{Detach: true}).Run(ctx)
-```
-
-The reflection API should remain the foundation, with codegen as an optional ergonomic layer.
-
-### Testability is part of the abstraction
-
-A command driver that cannot be tested without spawning real tools is not much of a driver.
-Glove should make rendered commands observable and execution replaceable.
-
-## Prior art and non-goals
-
-Glove is related to CLI parsing libraries in spirit, but it solves the inverse problem.
-
-CLI frameworks help you build a command-line interface for your own program.
-
-Glove helps your Go program drive external command-line interfaces as typed dependencies.
-
-Non-goals:
-
-* replacing `os/exec`
-* becoming a shell
-* parsing arbitrary shell strings
-* hiding subprocess behavior
-* pretending external tools are stable SDKs
-* modeling every possible CLI convention on day one
-
-## Roadmap
-
-Possible early milestones:
-
-* command frame rendering
-* flag and positional argument tags
-* nested command validation
-* binary resolution
-* injectable runners
-* dry-run command inspection
-* version detection
-* compatibility constraints
-* structured stderr/stdout result handling
-* optional code generation
+- replace `os/exec`
+- parse arbitrary shell strings
+- model every possible CLI convention
+- hide subprocess behavior behind an SDK-like facade
 
 ## License
 
