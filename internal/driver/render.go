@@ -60,6 +60,10 @@ func (d Driver[T]) Command(frames ...any) (command.Command, error) {
 }
 
 func (d Driver[T]) Run(ctx context.Context, frames ...any) command.Result {
+	return d.RunWith(ctx, command.RunOptions{}, frames...)
+}
+
+func (d Driver[T]) RunWith(ctx context.Context, options command.RunOptions, frames ...any) command.Result {
 	cmd, err := d.Command(frames...)
 	if err != nil {
 		return command.Result{
@@ -68,9 +72,15 @@ func (d Driver[T]) Run(ctx context.Context, frames ...any) command.Result {
 		}
 	}
 
-	result := d.runner.Run(ctx, cmd)
-	result.Command = cmd
-	return result
+	if options.Runner == nil {
+		options.Runner = d.runner
+	}
+
+	return cmd.RunWith(ctx, options)
+}
+
+func (d Driver[T]) With(ctx context.Context, options command.RunOptions, frames ...any) command.Result {
+	return d.RunWith(ctx, options, frames...)
 }
 
 func (d Driver[T]) baseCommand() command.Command {

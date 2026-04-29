@@ -59,6 +59,7 @@ The current implementation is a deliberately small first pass:
 - typed command trees using structs and tags
 - explicit command frames for nested commands
 - command inspection through `Driver.Command(...)`
+- execution options through `RunOptions`
 - default execution through `ExecRunner`
 - injectable runners for tests and custom process control
 - binary override through `CompileOptions`
@@ -141,6 +142,19 @@ git := glove.New(Git{}, glove.CompileOptions{
 	Bin: "/usr/local/bin/git",
 })
 ```
+
+Execution settings are supplied separately through `glove.RunOptions`:
+
+```go
+opts := glove.RunOptions{
+	Dir: "/workspace/repo",
+	Env: map[string]string{
+		"GIT_TERMINAL_PROMPT": "0",
+	},
+}
+```
+
+You can pass them explicitly with `RunWith(...)` or use the shorter `With(...)` alias.
 
 ## Representative examples
 
@@ -268,10 +282,12 @@ if err != nil {
 	panic(err)
 }
 
-cmd.Dir = "/tmp/work"
-cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-
-result := glove.ExecRunner{}.Run(ctx, cmd)
+result := cmd.RunWith(ctx, glove.RunOptions{
+	Dir: "/tmp/work",
+	Env: map[string]string{
+		"GIT_TERMINAL_PROMPT": "0",
+	},
+})
 ```
 
 ### Testing with a fake runner
@@ -281,7 +297,7 @@ type FakeRunner struct {
 	Commands []glove.Command
 }
 
-func (r *FakeRunner) Run(ctx context.Context, cmd glove.Command) glove.Result {
+func (r *FakeRunner) Run(ctx context.Context, cmd glove.Command, opts glove.RunOptions) glove.Result {
 	r.Commands = append(r.Commands, cmd)
 	return glove.Result{Command: cmd, Stdout: []byte("ok")}
 }
@@ -312,6 +328,12 @@ type CompileOptions struct {
 	Runner Runner
 }
 
+type RunOptions struct {
+	Dir    string
+	Env    map[string]string
+	Runner Runner
+}
+
 type Driver[T any] struct{ /* opaque */ }
 
 func Compile[T any](decl T, options ...CompileOptions) (Driver[T], error)
@@ -319,6 +341,8 @@ func New[T any](decl T, options ...CompileOptions) Driver[T]
 
 func (d Driver[T]) Command(frames ...any) (Command, error)
 func (d Driver[T]) Run(ctx context.Context, frames ...any) Result
+func (d Driver[T]) RunWith(ctx context.Context, options RunOptions, frames ...any) Result
+func (d Driver[T]) With(ctx context.Context, options RunOptions, frames ...any) Result
 ```
 
 Rendered commands and execution results use:
@@ -327,12 +351,13 @@ Rendered commands and execution results use:
 type Command struct {
 	Program string
 	Args    []string
-	Dir     string
-	Env     []string
 }
 
 func (c Command) Argv() []string
 func (c Command) String() string
+func (c Command) Run(ctx context.Context) Result
+func (c Command) RunWith(ctx context.Context, options RunOptions) Result
+func (c Command) With(ctx context.Context, options RunOptions) Result
 
 type Result struct {
 	Command Command
@@ -419,6 +444,7 @@ Glove also enforces a few rendering rules:
 - intermediate frames must be passed explicitly
 - within a frame, flags render before positional arguments
 - omitted optional positional arguments cannot be followed by later positional arguments
+- `Command` carries only the rendered program and argv; execution settings live in `RunOptions`
 
 ## Non-goals
 

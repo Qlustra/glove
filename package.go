@@ -11,6 +11,7 @@ type CompileOptions = driver.CompileOptions
 type Driver[T any] = driver.Driver[T]
 
 type Command = command.Command
+type RunOptions = command.RunOptions
 type Result = command.Result
 type Runner = command.Runner
 type ExecRunner = command.ExecRunner

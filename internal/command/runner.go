@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"sort"
 )
 
 var (
@@ -20,13 +21,19 @@ type Result struct {
 	Err     error
 }
 
+type RunOptions struct {
+	Dir    string
+	Env    map[string]string
+	Runner Runner
+}
+
 type Runner interface {
-	Run(context.Context, Command) Result
+	Run(context.Context, Command, RunOptions) Result
 }
 
 type ExecRunner struct{}
 
-func (ExecRunner) Run(ctx context.Context, cmd Command) Result {
+func (ExecRunner) Run(ctx context.Context, cmd Command, options RunOptions) Result {
 	result := Result{Command: cmd}
 
 	if ctx == nil {
@@ -39,11 +46,11 @@ func (ExecRunner) Run(ctx context.Context, cmd Command) Result {
 	}
 
 	execCmd := exec.CommandContext(ctx, cmd.Program, cmd.Args...)
-	if cmd.Dir != "" {
-		execCmd.Dir = cmd.Dir
+	if options.Dir != "" {
+		execCmd.Dir = options.Dir
 	}
-	if len(cmd.Env) > 0 {
-		execCmd.Env = append(os.Environ(), cmd.Env...)
+	if len(options.Env) > 0 {
+		execCmd.Env = append(os.Environ(), formatEnv(options.Env)...)
 	}
 
 	var stdout bytes.Buffer
@@ -57,4 +64,18 @@ func (ExecRunner) Run(ctx context.Context, cmd Command) Result {
 	result.Stderr = stderr.Bytes()
 
 	return result
+}
+
+func formatEnv(env map[string]string) []string {
+	keys := make([]string, 0, len(env))
+	for key := range env {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	formatted := make([]string, 0, len(keys))
+	for _, key := range keys {
+		formatted = append(formatted, key+"="+env[key])
+	}
+	return formatted
 }

@@ -197,14 +197,89 @@ func TestRunUsesInjectedRunner(t *testing.T) {
 	if !slices.Equal(runner.command.Args, want) {
 		t.Fatalf("runner args = %#v, want %#v", runner.command.Args, want)
 	}
+	if runner.options.Dir != "" {
+		t.Fatalf("dir = %q, want empty", runner.options.Dir)
+	}
+}
+
+func TestCommandRunWithPassesExecutionOptions(t *testing.T) {
+	runner := &captureRunner{
+		result: glove.Result{
+			Stdout: []byte("ok"),
+		},
+	}
+
+	cmd := glove.Command{
+		Program: "git",
+		Args:    []string{"status", "--short"},
+	}
+
+	result := cmd.RunWith(context.Background(), glove.RunOptions{
+		Dir: "/workspace/repo",
+		Env: map[string]string{
+			"GIT_TERMINAL_PROMPT": "0",
+		},
+		Runner: runner,
+	})
+
+	if string(result.Stdout) != "ok" {
+		t.Fatalf("stdout = %q, want ok", string(result.Stdout))
+	}
+	if runner.command.Program != "git" {
+		t.Fatalf("program = %q, want git", runner.command.Program)
+	}
+	if runner.options.Dir != "/workspace/repo" {
+		t.Fatalf("dir = %q, want /workspace/repo", runner.options.Dir)
+	}
+	if runner.options.Env["GIT_TERMINAL_PROMPT"] != "0" {
+		t.Fatalf("env = %#v, want GIT_TERMINAL_PROMPT=0", runner.options.Env)
+	}
+}
+
+func TestDriverRunWithOverridesDefaultRunner(t *testing.T) {
+	defaultRunner := &captureRunner{
+		result: glove.Result{Stdout: []byte("default")},
+	}
+	overrideRunner := &captureRunner{
+		result: glove.Result{Stdout: []byte("override")},
+	}
+
+	driver := glove.New(Git{}, glove.CompileOptions{
+		Runner: defaultRunner,
+	})
+
+	result := driver.RunWith(context.Background(), glove.RunOptions{
+		Dir:    "/workspace/repo",
+		Runner: overrideRunner,
+	}, Clone{
+		Branch: "main",
+		Repo:   "https://example.com/repo.git",
+	})
+
+	if string(result.Stdout) != "override" {
+		t.Fatalf("stdout = %q, want override", string(result.Stdout))
+	}
+	if defaultRunner.called {
+		t.Fatal("default runner should not have been called")
+	}
+	if !overrideRunner.called {
+		t.Fatal("override runner should have been called")
+	}
+	if overrideRunner.options.Dir != "/workspace/repo" {
+		t.Fatalf("dir = %q, want /workspace/repo", overrideRunner.options.Dir)
+	}
 }
 
 type captureRunner struct {
 	command glove.Command
+	options glove.RunOptions
 	result  glove.Result
+	called  bool
 }
 
-func (r *captureRunner) Run(_ context.Context, cmd glove.Command) glove.Result {
+func (r *captureRunner) Run(_ context.Context, cmd glove.Command, options glove.RunOptions) glove.Result {
+	r.called = true
 	r.command = cmd
+	r.options = options
 	return r.result
 }

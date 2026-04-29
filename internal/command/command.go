@@ -1,12 +1,13 @@
 package command
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 type Command struct {
 	Program string
 	Args    []string
-	Dir     string
-	Env     []string
 }
 
 func (c Command) Argv() []string {
@@ -68,4 +69,23 @@ func isShellSafe(token string) bool {
 	}
 
 	return true
+}
+
+func (c Command) Run(ctx context.Context) Result {
+	return c.RunWith(ctx, RunOptions{})
+}
+
+func (c Command) RunWith(ctx context.Context, options RunOptions) Result {
+	runner := options.Runner
+	if runner == nil {
+		runner = ExecRunner{}
+	}
+
+	result := runner.Run(ctx, c, options)
+	result.Command = c
+	return result
+}
+
+func (c Command) With(ctx context.Context, options RunOptions) Result {
+	return c.RunWith(ctx, options)
 }
