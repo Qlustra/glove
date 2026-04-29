@@ -109,3 +109,5 @@ go test ./...
 ## License
 
 Apache 2.0
+
+Conduit is maintained within the Qlustra Engineering Tooling Lab. https://github.com/Qlustra
