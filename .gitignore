@@ -1,0 +1,141 @@
+# ---------------
+# OS/Editor noise
+# ---------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.#*
+.nfs*
+*.code-workspace
+
+# -------
+# OS junk
+# -------
+.DS_Store
+Thumbs.db
+
+# -------
+# Secrets
+# -------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ----------------
+# Compressed files
+# ----------------
+*.7z
+*.zip
+*.rar
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+
+# ----------------------
+# Binary and executables
+# ----------------------
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+*.out
+
+# -----------
+# Disk images
+# -----------
+*.iso
+*.img
+*.dmg
+
+# ---------------
+# Temporary files
+# ---------------
+*.tmp
+*.bak
+*.pid
+
+# ------------------
+# Unversioned nontes
+# ------------------
+.notes
+.drafts
+
+# ------------------
+# Logs and databases
+# ------------------
+*.log
+*.sqlite
+*.db
+
+# -------------------------------
+# Well known tooling meta folders
+# -------------------------------
+
+### Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.pnpm/
+.yarn/
+.pnp.*
+.pnp.js
+# package-lock.json (Recommended to keep)
+# yarn.lock (Recommended to keep)
+# pnpm-lock.yaml (Recommended to keep)
+.bower-components/
+
+### Java / Kotlin
+.gradle/
+build/
+target/
+.mvn/
+*.class
+*.jar
+*.war
+*.ear
+.classpath
+.project
+.settings/
+bin/
+out/
+
+### Go
+vendor/
+# go.sum (Recommended to keep)
+*.test
+*.prof
+.task
+
+### Python
+__pycache__/
+.venv/
+venv/
+env/
+ENV/
+*.py[cod]
+*$py.class
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+.eggs/
+.tox/
+.mypy_cache/
+.dmypy.json
+# poetry.lock (Recommended to keep)
+# Pipfile.lock (Recommended to keep)
+.pdm.toml
+
