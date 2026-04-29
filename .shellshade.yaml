@@ -1,0 +1,204 @@
+version: 1
+project: pgshell
+defaults:
+  workspace:
+    host: "."
+    container: "/workspace"
+
+shells:
+  opencode:
+    image: ghcr.io/anomalyco/opencode
+    compatibility: augment
+    default_command: ["opencode"]
+  go:
+    image: glove-dev:go-latest
+    compatibility: augment
+    default_command: ["opencode"]
+#    toolSearchPaths: ["."]
+
+# =============================================================================
+# ShellShade Configuration Reference
+# =============================================================================
+#
+# The active config above is intentionally minimal.
+#
+# Most ShellShade configuration is user-defined (shell names, task names,
+# sidecar definitions, commands, paths, env variables, mounts, images, etc).
+#
+# Use the commented examples below as a reference for all supported fields.
+# Uncomment and adapt what you actually need.
+#
+# -----------------------------------------------------------------------------
+# Top-level structure
+# -----------------------------------------------------------------------------
+# version: 1
+# project: my_project
+# defaults:
+#   image: "ubuntu:22.04"
+#   default_command: ["bash"]
+#   compatibility: "shaded"          # inject | augment | shaded
+#   showLifecycleOutput: false
+#   workspace:
+#     host: "."
+#     container: "/workspace"
+#   env:
+#     inline:
+#       WORKSPACE: "/workspace"
+#       FOO: "bar"
+#     file: ".env"
+#   mounts:
+#     - "./tmp:/tmp"
+#     - "./data:/data:ro"
+#   network: ""
+#   networkSetup: ""                  # "" | "join" | "create"
+#   sidecars: []
+#   pull: true
+#   cache:
+#     mode: "off"                     # off | auto | path
+#     host: ""                        # used by mode: path
+#     container: "/cache"
+#     env_key: "SHELLSHADE_CACHE"
+#   workdir: ""                       # relative to workspace.container (default ".")
+#
+# shells:
+#   dev:
+#     image: "ubuntu:22.04"
+#
+# tasks:
+#   test:
+#     shell: "dev"
+#     cmds:
+#       - "echo hello"
+#
+# -----------------------------------------------------------------------------
+# Shells (user-defined names)
+# -----------------------------------------------------------------------------
+# shells:
+#   <shell-name>:
+#     image: "<docker-image-or-global-alias>"   # required
+#
+#     # Optional command executed by `shade enter <shell>` when no explicit
+#     # command is passed.
+#     default_command:
+#       - "bash"
+#
+#     # Optional compatibility mode override for this shell.
+#     compatibility: "shaded"                   # inject | augment | shaded
+#
+#     # Optional runtime output behavior override for this shell.
+#     showLifecycleOutput: false
+#
+#     # Optional workspace override.
+#     workspace:
+#       host: "."                               # relative to shell root; must stay within it
+#       container: "/workspace"
+#
+#     # Optional env settings.
+#     env:
+#       inline:
+#         WORKSPACE: "/workspace"
+#         EXAMPLE_KEY: "value"
+#       file: ".env"
+#
+#     # Optional extra mounts (appended to defaults.mounts).
+#     mounts:
+#       - "./tmp:/tmp"
+#       - "./.cache/shared:/shared-cache"
+#
+#     # Optional network settings.
+#     network: "devnet"
+#     networkSetup: "join"                      # "" | "join" | "create"
+#
+#     # Optional sidecars (appended to defaults.sidecars).
+#     sidecars:
+#       - name: "db"
+#         image: "postgres:16"
+#         runArgs:
+#           - "--health-cmd=pg_isready -U postgres"
+#         args:
+#           - "postgres"
+#         env:
+#           inline:
+#             POSTGRES_PASSWORD: "postgres"
+#           file: ""
+#         mounts:
+#           - "./.shellshade/postgres:/var/lib/postgresql/data"
+#         ports:
+#           - "5432:5432"
+#         network: "devnet"
+#         privileged: false
+#         cleanup: true
+#         pull: true
+#         wait:
+#           mode: "health"                      # currently only "health"
+#           timeoutSeconds: 30
+#           intervalSeconds: 1
+#
+#     # Optional pull behavior override for `shade pull`.
+#     pull: true
+#
+#     # Optional cache mount behavior override.
+#     cache:
+#       mode: "auto"                            # off | auto | path
+#       host: "./.cache/dev"                    # required when mode: path
+#       container: "/cache"
+#       env_key: "SHELLSHADE_CACHE"
+#
+#     # Optional container working directory, relative to workspace.container.
+#     workdir: "codebase"
+#
+#     # Optional extra paths (relative to workspace.container) scanned for
+#     # tool detection and automatic cache env setup.
+#     # Note: workspace root is always scanned.
+#     toolSearchPaths:
+#       - "frontend"
+#       - "backend"
+#       - "tools"
+#
+# -----------------------------------------------------------------------------
+# Tasks (user-defined names)
+# -----------------------------------------------------------------------------
+# tasks:
+#   <task-name>:
+#     # Optional shell to run in (named shell or global alias).
+#     shell: "dev"
+#
+#     # Required. Either a single string command or a list of commands.
+#     cmds: "echo single command"
+#     # cmds:
+#     #   - "npm ci"
+#     #   - "npm test"
+#
+#     # Optional task-level env (merged on top of selected shell env).
+#     env:
+#       inline:
+#         CI: "1"
+#       file: ".env.test"
+#
+#     # Optional task working directory. Relative paths are resolved from
+#     # workspace.container.
+#     workdir: "frontend"
+#
+# -----------------------------------------------------------------------------
+# Merge and resolution behavior (summary)
+# -----------------------------------------------------------------------------
+# - defaults and each shell share the same structure.
+# - shell scalar fields override defaults when set.
+# - shell env.inline merges over defaults env.inline.
+# - shell mounts append to defaults mounts.
+# - shell sidecars append to defaults sidecars.
+# - task env.inline merges over shell env.inline.
+# - task env.file overrides shell env.file when set.
+# - task workdir overrides shell workdir for that task.
+#
+# Path resolution:
+# - workspace.host, env.file, cache.host (mode: path), and task env.file are
+#   resolved relative to the shell root when relative paths are used.
+# - shell/task workdir values resolve from workspace.container when relative.
+# - CLI workdir overrides resolve from host cwd and then map into
+#   workspace.container.
+# - resolved workdir values must stay within workspace.container.
+#
+# CLI overrides (one run only):
+# - --compatibility=<inject|augment|shaded>
+# - --show-lifecycle-output

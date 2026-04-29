@@ -1,0 +1,38 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task -l
+
+  # ==
+  # GO
+  # ==
+
+  install:
+    desc: Install all Go module dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+      - go mod verify
+
+  validate:
+    desc: Validate all Go modules
+    cmds:
+      - gofmt -w -s ./internal
+      - go test ./internal/...
+      - go vet ./internal/...
+
+  # =======
+  # TOOLING
+  # =======
+
+  build:devimage:
+    desc: Build the local development image
+    cmds:
+      - docker compose -f tooling/docker-compose.yaml build dev
+
+  enter:dev:
+    desc: Enter the dev image
+    cmds:
+      - shade enter go -- bash

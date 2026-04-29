@@ -1,0 +1,12 @@
+# ShellShade meta directory - automatically generated files
+# These directories contain temporary/build artifacts that should not be committed
+
+# home/ - Persistent container home directory
+# Contains: shell history, tool caches (npm, gradle, pnpm, etc.), application configs
+# This is your personal container state, not project source code
+home/
+
+# augments/ - Generated Dockerfiles for image augmentation
+# Contains: Automatically generated Dockerfiles when base images need modification
+# to work with shellshade's entrypoint injection. These are build artifacts.
+augments/
