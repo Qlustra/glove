@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/qlustra/glove/internal/command"
 )
@@ -192,12 +193,20 @@ func renderFlagField(field flagField, value reflect.Value) ([]string, error) {
 			return nil, nil
 		}
 
-		rendered := make([]string, 0, value.Len()*2)
+		items := make([]string, 0, value.Len())
 		for i := 0; i < value.Len(); i++ {
 			item, err := stringifyScalar(value.Index(i))
 			if err != nil {
 				return nil, err
 			}
+			items = append(items, item)
+		}
+		if field.sliceMode == flagSliceModeList {
+			return []string{field.name, strings.Join(items, " ")}, nil
+		}
+
+		rendered := make([]string, 0, len(items)*2)
+		for _, item := range items {
 			rendered = append(rendered, field.name, item)
 		}
 		return rendered, nil

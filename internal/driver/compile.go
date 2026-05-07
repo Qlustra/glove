@@ -48,6 +48,7 @@ type flagField struct {
 	name      string
 	aliases   []string
 	mode      flagMode
+	sliceMode flagSliceMode
 }
 
 type argMode uint8
@@ -70,6 +71,13 @@ type argField struct {
 type compiler struct {
 	nodes map[reflect.Type]*node
 }
+
+type flagSliceMode uint8
+
+const (
+	flagSliceModeRepeat flagSliceMode = iota + 1
+	flagSliceModeList
+)
 
 func Compile[T any](decl T, options ...CompileOptions) (Driver[T], error) {
 	rootType, err := structTypeOf(reflect.TypeOf(decl))
@@ -262,6 +270,7 @@ func parseFlagField(field reflect.StructField) (flagField, error) {
 		names     []string
 		sawRepeat bool
 		sawKV     bool
+		sawList   bool
 	)
 
 	for _, token := range tokens {
@@ -270,6 +279,8 @@ func parseFlagField(field reflect.StructField) (flagField, error) {
 			sawRepeat = true
 		case "kv":
 			sawKV = true
+		case "list":
+			sawList = true
 		default:
 			if !strings.HasPrefix(token, "-") {
 				return flagField{}, fmt.Errorf("flag token %q must start with '-'", token)
@@ -292,6 +303,17 @@ func parseFlagField(field reflect.StructField) (flagField, error) {
 	if sawKV && mode != flagModeMap {
 		return flagField{}, fmt.Errorf("kv is only valid on map[string]string")
 	}
+	if sawList && mode != flagModeSlice {
+		return flagField{}, fmt.Errorf("list is only valid on slices")
+	}
+	if sawRepeat && sawList {
+		return flagField{}, fmt.Errorf("repeat and list cannot be combined")
+	}
+
+	sliceMode := flagSliceModeRepeat
+	if sawList {
+		sliceMode = flagSliceModeList
+	}
 
 	return flagField{
 		fieldName: field.Name,
@@ -299,6 +321,7 @@ func parseFlagField(field reflect.StructField) (flagField, error) {
 		name:      names[0],
 		aliases:   names[1:],
 		mode:      mode,
+		sliceMode: sliceMode,
 	}, nil
 }
 

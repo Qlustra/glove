@@ -38,6 +38,17 @@ type Git struct {
 	Clone Clone     `cmd:"clone"`
 }
 
+type GoTool struct {
+	Bin   glove.Bin `bin:"go"`
+	Build Build     `cmd:"build"`
+}
+
+type Build struct {
+	Output    string   `flag:"-o"`
+	LinkFlags []string `flag:"-ldflags,list"`
+	Packages  []string `arg:"0,tail"`
+}
+
 type Clone struct {
 	Branch string `flag:"--branch,-b"`
 	Repo   string `arg:"0,required"`
@@ -106,11 +117,54 @@ func TestCommandSortsMapFlags(t *testing.T) {
 	}
 }
 
+func TestCommandRendersListStyleSliceFlag(t *testing.T) {
+	driver := glove.New(GoTool{})
+
+	cmd, err := driver.Command(Build{
+		Output: "bin/sun",
+		LinkFlags: []string{
+			"-X main.BinaryVersion=0.0.1",
+			"-X main.BuildDate=2026-05-07T19:03:17Z",
+		},
+		Packages: []string{"./cmd/sun"},
+	})
+	if err != nil {
+		t.Fatalf("render command: %v", err)
+	}
+
+	want := []string{
+		"build",
+		"-o", "bin/sun",
+		"-ldflags", "-X main.BinaryVersion=0.0.1 -X main.BuildDate=2026-05-07T19:03:17Z",
+		"./cmd/sun",
+	}
+	if !slices.Equal(cmd.Args, want) {
+		t.Fatalf("args = %#v, want %#v", cmd.Args, want)
+	}
+
+	wantString := "go build -o bin/sun -ldflags '-X main.BinaryVersion=0.0.1 -X main.BuildDate=2026-05-07T19:03:17Z' ./cmd/sun"
+	if cmd.String() != wantString {
+		t.Fatalf("string = %q, want %q", cmd.String(), wantString)
+	}
+}
+
 func TestCompileRejectsNonContiguousArgs(t *testing.T) {
 	type Invalid struct {
 		Bin glove.Bin `bin:"tool"`
 		One string    `arg:"0"`
 		Two string    `arg:"2"`
+	}
+
+	_, err := glove.Compile(Invalid{})
+	if err == nil {
+		t.Fatal("expected compile error")
+	}
+}
+
+func TestCompileRejectsListFlagOnNonSlice(t *testing.T) {
+	type Invalid struct {
+		Bin  glove.Bin `bin:"tool"`
+		Flag string    `flag:"--flag,list"`
 	}
 
 	_, err := glove.Compile(Invalid{})

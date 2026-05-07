@@ -19,6 +19,7 @@ Rules enforced at compile time:
 - a `tail` arg must be last
 - a required positional arg may not follow an optional positional arg
 - unsupported field shapes for `flag` and `arg` are rejected
+- unsupported tag option combinations such as `repeat` with `list` are rejected
 
 Representative compile failures:
 

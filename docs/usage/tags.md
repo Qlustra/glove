@@ -43,6 +43,7 @@ Branch string            `flag:"--branch,-b"`
 Quiet  bool              `flag:"--quiet,-q"`
 Env    map[string]string `flag:"--env,-e,repeat,kv"`
 Volume []string          `flag:"--volume,-v,repeat"`
+LD     []string          `flag:"-ldflags,list"`
 ```
 
 The first token is the rendered flag name. Additional flag names are aliases for declaration and validation.
@@ -58,9 +59,24 @@ Supported shapes:
 Additional notes:
 
 - `repeat` is accepted only on slice and map flags
+- `list` is accepted only on slice flags and renders one flag with a space-joined value
 - `kv` is accepted only on `map[string]string`
-- repeated rendering is inferred from the field type; the extra tokens mainly make the declaration explicit
+- slice flags render in repeated form by default; `list` opts into single-flag list rendering
 - pointer `bool` and slice `bool` flags are not supported
+
+For Go toolchain flags such as `-ldflags`, `-gcflags`, and `-asmflags`, `list` lets a slice model one flag occurrence:
+
+```go
+type Build struct {
+	LinkFlags []string `flag:"-ldflags,list"`
+}
+```
+
+This renders as:
+
+```sh
+go build -ldflags '-X main.Version=1.0.0 -X main.Commit=abc123'
+```
 
 ## `arg`
 
