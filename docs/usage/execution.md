@@ -84,9 +84,13 @@ result := driver.RunWith(ctx, glove.RunOptions{
 
 ```go
 type RunOptions struct {
-	Dir    string
-	Env    map[string]string
-	Runner glove.Runner
+	Dir              string
+	Env              map[string]string
+	Stdin            io.Reader
+	Stdout           io.Writer
+	Stderr           io.Writer
+	DisableBuffering bool
+	Runner           glove.Runner
 }
 ```
 
@@ -94,6 +98,10 @@ Behavior:
 
 - `Dir` sets the working directory
 - `Env` is appended to the current process environment
+- `Stdin` feeds the child process input
+- `Stdout` receives stdout as the command produces it
+- `Stderr` receives stderr as the command produces it
+- `DisableBuffering` disables `Result.Stdout` and `Result.Stderr` capture
 - `Runner` overrides the driver's default runner for one call
 
 The environment map is sorted by key before execution so the generated environment slice is deterministic.
@@ -106,7 +114,21 @@ Important behavior:
 
 - `ExecRunner` requires a non-nil context
 - a command must have a non-empty program
-- stdout and stderr are captured into `glove.Result`
+- stdout and stderr are captured into `glove.Result` by default
+- when `Stdout` or `Stderr` is set, output is both captured and forwarded
+- when `DisableBuffering` is true, output is forwarded only and `Result.Stdout` / `Result.Stderr` stay empty
+
+Example:
+
+```go
+result := git.RunWith(ctx, glove.RunOptions{
+	Stdout:           os.Stdout,
+	Stderr:           os.Stderr,
+	DisableBuffering: true,
+}, Clone{
+	Repo: "https://example.com/repo.git",
+})
+```
 
 ## Custom runners
 

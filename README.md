@@ -10,6 +10,7 @@ Glove lets you describe an external CLI as a validated Go command schema, then r
 - typed command trees declared with `bin`, `cmd`, `flag`, and `arg` tags
 - explicit command rendering through `Driver.Command(...)` before execution
 - pluggable execution through `RunOptions` and custom `Runner` implementations
+- optional stdio forwarding through `RunOptions` for streaming output
 - not a CLI framework, shell parser, or a fit for order-sensitive token streams such as `ffmpeg`
 
 ## Why it exists

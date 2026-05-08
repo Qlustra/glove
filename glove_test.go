@@ -1,9 +1,14 @@
 package glove_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/qlustra/glove"
@@ -53,6 +58,15 @@ type Clone struct {
 	Branch string `flag:"--branch,-b"`
 	Repo   string `arg:"0,required"`
 	Dir    string `arg:"1"`
+}
+
+func TestMain(m *testing.M) {
+	if os.Getenv("GLOVE_HELPER_PROCESS") == "1" {
+		runExecRunnerHelper()
+		return
+	}
+
+	os.Exit(m.Run())
 }
 
 func TestCommandRendersNestedFrames(t *testing.T) {
@@ -267,13 +281,20 @@ func TestCommandRunWithPassesExecutionOptions(t *testing.T) {
 		Program: "git",
 		Args:    []string{"status", "--short"},
 	}
+	stdin := strings.NewReader("input")
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
 
 	result := cmd.RunWith(context.Background(), glove.RunOptions{
 		Dir: "/workspace/repo",
 		Env: map[string]string{
 			"GIT_TERMINAL_PROMPT": "0",
 		},
-		Runner: runner,
+		Stdin:            stdin,
+		Stdout:           stdout,
+		Stderr:           stderr,
+		DisableBuffering: true,
+		Runner:           runner,
 	})
 
 	if string(result.Stdout) != "ok" {
@@ -287,6 +308,18 @@ func TestCommandRunWithPassesExecutionOptions(t *testing.T) {
 	}
 	if runner.options.Env["GIT_TERMINAL_PROMPT"] != "0" {
 		t.Fatalf("env = %#v, want GIT_TERMINAL_PROMPT=0", runner.options.Env)
+	}
+	if runner.options.Stdin != stdin {
+		t.Fatalf("stdin = %#v, want original reader", runner.options.Stdin)
+	}
+	if runner.options.Stdout != stdout {
+		t.Fatalf("stdout = %#v, want original writer", runner.options.Stdout)
+	}
+	if runner.options.Stderr != stderr {
+		t.Fatalf("stderr = %#v, want original writer", runner.options.Stderr)
+	}
+	if !runner.options.DisableBuffering {
+		t.Fatal("DisableBuffering = false, want true")
 	}
 }
 
@@ -336,4 +369,86 @@ func (r *captureRunner) Run(_ context.Context, cmd glove.Command, options glove.
 	r.command = cmd
 	r.options = options
 	return r.result
+}
+
+func TestExecRunnerStreamsAndCapturesIO(t *testing.T) {
+	var forwardedStdout bytes.Buffer
+	var forwardedStderr bytes.Buffer
+
+	cmd := glove.Command{
+		Program: os.Args[0],
+		Args:    []string{"--"},
+	}
+
+	result := cmd.RunWith(context.Background(), glove.RunOptions{
+		Env: map[string]string{
+			"GLOVE_HELPER_PROCESS": "1",
+		},
+		Stdin:  strings.NewReader("ping"),
+		Stdout: &forwardedStdout,
+		Stderr: &forwardedStderr,
+	})
+
+	if result.Err != nil {
+		t.Fatalf("run: %v", result.Err)
+	}
+	if got, want := string(result.Stdout), "stdout:ping"; got != want {
+		t.Fatalf("result stdout = %q, want %q", got, want)
+	}
+	if got, want := string(result.Stderr), "stderr:ready"; got != want {
+		t.Fatalf("result stderr = %q, want %q", got, want)
+	}
+	if got, want := forwardedStdout.String(), "stdout:ping"; got != want {
+		t.Fatalf("forwarded stdout = %q, want %q", got, want)
+	}
+	if got, want := forwardedStderr.String(), "stderr:ready"; got != want {
+		t.Fatalf("forwarded stderr = %q, want %q", got, want)
+	}
+}
+
+func TestExecRunnerCanDisableBuffering(t *testing.T) {
+	var forwardedStdout bytes.Buffer
+	var forwardedStderr bytes.Buffer
+
+	cmd := glove.Command{
+		Program: os.Args[0],
+		Args:    []string{"--"},
+	}
+
+	result := cmd.RunWith(context.Background(), glove.RunOptions{
+		Env: map[string]string{
+			"GLOVE_HELPER_PROCESS": "1",
+		},
+		Stdin:            strings.NewReader("pong"),
+		Stdout:           &forwardedStdout,
+		Stderr:           &forwardedStderr,
+		DisableBuffering: true,
+	})
+
+	if result.Err != nil {
+		t.Fatalf("run: %v", result.Err)
+	}
+	if result.Stdout != nil {
+		t.Fatalf("result stdout = %q, want nil", string(result.Stdout))
+	}
+	if result.Stderr != nil {
+		t.Fatalf("result stderr = %q, want nil", string(result.Stderr))
+	}
+	if got, want := forwardedStdout.String(), "stdout:pong"; got != want {
+		t.Fatalf("forwarded stdout = %q, want %q", got, want)
+	}
+	if got, want := forwardedStderr.String(), "stderr:ready"; got != want {
+		t.Fatalf("forwarded stderr = %q, want %q", got, want)
+	}
+}
+
+func runExecRunnerHelper() {
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprint(os.Stderr, err.Error())
+		os.Exit(2)
+	}
+
+	fmt.Fprintf(os.Stdout, "stdout:%s", input)
+	fmt.Fprint(os.Stderr, "stderr:ready")
 }
