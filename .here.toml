@@ -1,0 +1,45 @@
+[here]
+location = "glove"
+label = "Glove"
+about = """Go library for typed drivers over external command-tree CLIs: declare a command schema, render argv, and run it."""
+policy = "Keep declaration, rendering, and execution separate. Public behavior changes update docs/ and glove_test.go."
+
+[where.docs]
+path = "docs/"
+label = "Documentation"
+about = "Documentation split by intent: usage model, API reference, and examples. Start at docs/readme.md."
+
+[where.public-api]
+path = "package.go"
+label = "Public package surface"
+about = "Root aliases, Compile, and New for github.com/qlustra/glove; exported behavior is implemented under internal/."
+
+[where.driver]
+path = "internal/driver/"
+label = "Driver compilation and rendering"
+about = "Schema compilation, frame-path validation, flag and arg rules, and argv rendering. Source of truth for declaration behavior."
+
+[where.command]
+path = "internal/command/"
+label = "Command execution"
+about = "Command, RunOptions, Result, Runner, and ExecRunner; os/exec execution and output capture."
+
+[where.tests]
+path = "glove_test.go"
+label = "Behavioral tests"
+about = "Primary coverage of compilation, rendering, execution, and validation errors."
+
+[where.agent-skill]
+path = "tooling/agents/SKILL.md"
+label = "Agent working guide"
+about = "Glove model, tag grammar, execution semantics, testing patterns, and repository change guidance."
+
+[howto.test]
+run = "go test ./..."
+about = "Run the full module test suite, including the root exported-API tests."
+see = ["glove_test.go"]
+
+[howto.validate]
+run = "task validate"
+about = "Format, test, and vet internal packages through Taskfile.yml."
+see = ["Taskfile.yml"]

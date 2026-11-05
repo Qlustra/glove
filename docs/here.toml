@@ -1,0 +1,19 @@
+[here]
+location = "docs"
+label = "Glove documentation"
+about = """Documentation set split by intent. Start at readme.md, then choose usage, api, or examples."""
+
+[where.usage]
+path = "usage/"
+label = "Usage guides"
+about = "Conceptual model: command-tree declarations, tag grammar, execution, and validation."
+
+[where.api]
+path = "api/"
+label = "API reference"
+about = "Exported Driver and Command surface, with behavior notes."
+
+[where.examples]
+path = "examples/"
+label = "Examples"
+about = "Representative git, docker, and testing driver layouts."
