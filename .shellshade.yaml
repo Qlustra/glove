@@ -6,15 +6,12 @@ defaults:
     container: "/workspace"
 
 shells:
-  opencode:
-    image: ghcr.io/anomalyco/opencode
-    compatibility: augment
+  workshop:
+    image: qlustra.local/workshop:latest
+    compatibility: shaded
+    entrypoint_policy: preserve
     default_command: ["opencode"]
-  go:
-    image: glove-dev:go-latest
-    compatibility: augment
-    default_command: ["opencode"]
-#    toolSearchPaths: ["."]
+    pull: false
 
 # =============================================================================
 # ShellShade Configuration Reference

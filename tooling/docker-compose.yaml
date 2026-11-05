@@ -1,7 +1,0 @@
-name: glove-tooling
-
-services:
-  dev:
-    image: glove-dev:go-latest
-    build:
-      context: ./go-dev
