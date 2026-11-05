@@ -111,4 +111,4 @@ go test ./...
 
 Apache 2.0
 
-Conduit is maintained within the Qlustra Engineering Tooling Lab. https://github.com/Qlustra
+Glove is maintained within the Qlustra Engineering Tooling Lab. https://github.com/Qlustra
