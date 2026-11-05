@@ -63,6 +63,26 @@ type Gap struct {
 
 Rendering `Gap{First: "one", Last: &last}` fails because position `1` was omitted.
 
+## Flag validation
+
+A flag tagged with `required` must render a value:
+
+- a required bool flag must be `true`
+- a required scalar flag must be non-zero
+- a required pointer flag must be non-nil, including when it points at a zero value
+- a required slice or map flag must be non-empty
+
+Rendering fails when a required flag would otherwise be omitted. For example, this declaration requires `--token`:
+
+```go
+type Auth struct {
+	Bin   glove.Bin `bin:"tool"`
+	Token string    `flag:"--token,required"`
+}
+```
+
+Rendering `Auth{}` fails because `Token` is empty. A pointer flag is the way to require a value whose zero form is meaningful.
+
 ## Run-time errors
 
 `Driver.Run(...)` and `RunWith(...)` return a `glove.Result` even when rendering fails. In that case:

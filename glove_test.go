@@ -162,6 +162,85 @@ func TestCommandRendersListStyleSliceFlag(t *testing.T) {
 	}
 }
 
+func TestCommandRejectsMissingRequiredFlag(t *testing.T) {
+	type Tool struct {
+		Bin   glove.Bin `bin:"tool"`
+		Token string    `flag:"--token,required"`
+	}
+
+	driver := glove.New(Tool{})
+
+	_, err := driver.Command(Tool{})
+	if err == nil || !strings.Contains(err.Error(), "--token is required") {
+		t.Fatalf("err = %v, want required flag error", err)
+	}
+}
+
+func TestCommandRendersPresentRequiredFlags(t *testing.T) {
+	type Tool struct {
+		Bin   glove.Bin `bin:"tool"`
+		Token string    `flag:"--token,required"`
+		Count *int      `flag:"--count,required"`
+		Force bool      `flag:"--force,required"`
+	}
+
+	zero := 0
+	driver := glove.New(Tool{})
+
+	cmd, err := driver.Command(Tool{Token: "abc", Count: &zero, Force: true})
+	if err != nil {
+		t.Fatalf("render command: %v", err)
+	}
+
+	want := []string{"--token", "abc", "--count", "0", "--force"}
+	if !slices.Equal(cmd.Args, want) {
+		t.Fatalf("args = %#v, want %#v", cmd.Args, want)
+	}
+
+	_, err = driver.Command(Tool{Token: "abc", Count: &zero})
+	if err == nil || !strings.Contains(err.Error(), "--force is required") {
+		t.Fatalf("err = %v, want required bool flag error", err)
+	}
+
+	_, err = driver.Command(Tool{Token: "abc", Force: true})
+	if err == nil || !strings.Contains(err.Error(), "--count is required") {
+		t.Fatalf("err = %v, want required pointer flag error", err)
+	}
+}
+
+func TestCommandRequiresCollectionFlags(t *testing.T) {
+	type Tool struct {
+		Bin  glove.Bin         `bin:"tool"`
+		Env  map[string]string `flag:"--env,repeat,kv,required"`
+		Tags []string          `flag:"--tag,repeat,required"`
+	}
+
+	driver := glove.New(Tool{})
+
+	_, err := driver.Command(Tool{})
+	if err == nil || !strings.Contains(err.Error(), "--env is required") {
+		t.Fatalf("err = %v, want required map flag error", err)
+	}
+
+	_, err = driver.Command(Tool{Env: map[string]string{"A": "1"}})
+	if err == nil || !strings.Contains(err.Error(), "--tag is required") {
+		t.Fatalf("err = %v, want required slice flag error", err)
+	}
+
+	cmd, err := driver.Command(Tool{
+		Env:  map[string]string{"A": "1"},
+		Tags: []string{"one"},
+	})
+	if err != nil {
+		t.Fatalf("render command: %v", err)
+	}
+
+	want := []string{"--env", "A=1", "--tag", "one"}
+	if !slices.Equal(cmd.Args, want) {
+		t.Fatalf("args = %#v, want %#v", cmd.Args, want)
+	}
+}
+
 func TestCompileRejectsNonContiguousArgs(t *testing.T) {
 	type Invalid struct {
 		Bin glove.Bin `bin:"tool"`

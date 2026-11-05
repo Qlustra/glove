@@ -61,8 +61,21 @@ Additional notes:
 - `repeat` is accepted only on slice and map flags
 - `list` is accepted only on slice flags and renders one flag with a space-joined value
 - `kv` is accepted only on `map[string]string`
+- `required` is accepted on any flag shape and fails rendering when the flag would otherwise be omitted
 - slice flags render in repeated form by default; `list` opts into single-flag list rendering
 - pointer `bool` and slice `bool` flags are not supported
+
+`required` makes the flag mandatory at render time:
+
+```go
+Token string `flag:"--token,required"`
+```
+
+A required flag must be present under the same rules that normally omit it: a bool must be `true`, a scalar must be non-zero, a pointer must be non-nil, and a slice or map must be non-empty. Use a pointer when a zero value is itself meaningful:
+
+```go
+Count *int `flag:"--count,required"` // &0 renders --count 0
+```
 
 For Go toolchain flags such as `-ldflags`, `-gcflags`, and `-asmflags`, `list` lets a slice model one flag occurrence:
 

@@ -49,6 +49,7 @@ type flagField struct {
 	aliases   []string
 	mode      flagMode
 	sliceMode flagSliceMode
+	required  bool
 }
 
 type argMode uint8
@@ -267,10 +268,11 @@ func parseFlagField(field reflect.StructField) (flagField, error) {
 	}
 
 	var (
-		names     []string
-		sawRepeat bool
-		sawKV     bool
-		sawList   bool
+		names       []string
+		sawRepeat   bool
+		sawKV       bool
+		sawList     bool
+		sawRequired bool
 	)
 
 	for _, token := range tokens {
@@ -281,6 +283,8 @@ func parseFlagField(field reflect.StructField) (flagField, error) {
 			sawKV = true
 		case "list":
 			sawList = true
+		case "required":
+			sawRequired = true
 		default:
 			if !strings.HasPrefix(token, "-") {
 				return flagField{}, fmt.Errorf("flag token %q must start with '-'", token)
@@ -322,6 +326,7 @@ func parseFlagField(field reflect.StructField) (flagField, error) {
 		aliases:   names[1:],
 		mode:      mode,
 		sliceMode: sliceMode,
+		required:  sawRequired,
 	}, nil
 }
 

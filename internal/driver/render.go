@@ -161,17 +161,18 @@ func renderNode(n *node, value reflect.Value) ([]string, error) {
 }
 
 func renderFlagField(field flagField, value reflect.Value) ([]string, error) {
+	if !flagFieldPresent(field.mode, value) {
+		if field.required {
+			return nil, fmt.Errorf("flag %s is required", field.name)
+		}
+		return nil, nil
+	}
+
 	switch field.mode {
 	case flagModeBool:
-		if !value.Bool() {
-			return nil, nil
-		}
 		return []string{field.name}, nil
 
 	case flagModeScalar:
-		if value.IsZero() {
-			return nil, nil
-		}
 		rendered, err := stringifyScalar(value)
 		if err != nil {
 			return nil, err
@@ -179,9 +180,6 @@ func renderFlagField(field flagField, value reflect.Value) ([]string, error) {
 		return []string{field.name, rendered}, nil
 
 	case flagModePointer:
-		if value.IsNil() {
-			return nil, nil
-		}
 		rendered, err := stringifyScalar(value.Elem())
 		if err != nil {
 			return nil, err
@@ -189,10 +187,6 @@ func renderFlagField(field flagField, value reflect.Value) ([]string, error) {
 		return []string{field.name, rendered}, nil
 
 	case flagModeSlice:
-		if value.Len() == 0 {
-			return nil, nil
-		}
-
 		items := make([]string, 0, value.Len())
 		for i := 0; i < value.Len(); i++ {
 			item, err := stringifyScalar(value.Index(i))
@@ -212,10 +206,6 @@ func renderFlagField(field flagField, value reflect.Value) ([]string, error) {
 		return rendered, nil
 
 	case flagModeMap:
-		if value.Len() == 0 {
-			return nil, nil
-		}
-
 		keys := make([]string, 0, value.Len())
 		for _, key := range value.MapKeys() {
 			keys = append(keys, key.String())
@@ -234,6 +224,22 @@ func renderFlagField(field flagField, value reflect.Value) ([]string, error) {
 
 	default:
 		return nil, fmt.Errorf("unsupported flag mode %d", field.mode)
+	}
+}
+
+func flagFieldPresent(mode flagMode, value reflect.Value) bool {
+	switch mode {
+	case flagModeBool:
+		return value.Bool()
+	case flagModeScalar:
+		return !value.IsZero()
+	case flagModePointer:
+		return !value.IsNil()
+	case flagModeSlice, flagModeMap:
+		return value.Len() > 0
+	default:
+		// Let renderFlagField report the unsupported mode.
+		return true
 	}
 }
 

@@ -90,6 +90,7 @@ Flag options:
 - `repeat`: valid only for slices and maps
 - `list`: valid only for slice flags; renders one flag with a space-joined value
 - `kv`: valid only for `map[string]string`
+- `required`: valid for any flag shape; fails rendering when the flag would otherwise be omitted
 
 Important constraints:
 
@@ -98,6 +99,8 @@ Important constraints:
 - `repeat` and `list` cannot be combined
 - flag names and aliases must be unique within one frame
 - the first declared flag name is the rendered token; later names are aliases for validation only
+- a required bool must be `true`, a required scalar must be non-zero, a required pointer must be non-nil, and a required slice or map must be non-empty
+- use a pointer when a required flag needs to render a meaningful zero value
 
 Use `list` for Go toolchain-style flags such as `-ldflags`, `-gcflags`, or `-asmflags` where one flag occurrence carries a joined value.
 
